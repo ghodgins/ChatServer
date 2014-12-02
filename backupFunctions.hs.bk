@@ -1,0 +1,59 @@
+backupFunctions:
+
+{-
+addRoomIfNecessary :: ChatServer -> RoomName -> STM (Maybe Chatroom)
+addRoomIfNecessary server@ChatServer{..} roomName = do
+  roomsMap <- readTVar chatrooms
+  -- if room does not exist, create it and add it to the chatroom map, otherwise do nothing
+  if (member roomName roomsMap)
+    then do newRoom <- newChatroom roomName
+            let updated = insert roomName newRoom roomsMap
+            writeTVar chatrooms updated
+            return $ Just newRoom
+    else return Nothing
+-}
+
+{-
+addClient :: ChatServer -> ClientName -> Handle -> IO (Maybe Client)
+addClient server@ChatServer{..} name handle = atomically $ do
+  clientmap <- readTVar clients
+  if member name clientmap
+    then return Nothing
+    else do client <- newClient name handle
+            writeTVar clients $ insert name client clientmap
+            broadcast server  $ (name ++ " has connected")
+            return (Just client)
+-}
+{-
+addClientToRoom :: ChatServer -> ClientName -> Handle -> RoomName -> STM (Maybe Client)
+addClientToRoom server@ChatServer{..} name handle roomName = do
+  roomsMap <- readTVar chatrooms -- causing lockup, possibly due to writeTVar above not writing
+  let room = fromJust $ lookup roomName roomsMap
+
+  roomclients <- readTVar $ roomClients room
+
+  --client <- newClient name handle
+  --let maybeClient = Just client 
+  {-newClient <- newClient name handle
+  return $ Just newClient-}
+
+  -- if client does not exist, add it, otherwise return Nothing to signify it already exists
+  if (member name roomclients)
+  then do newClient <- newClient name handle
+          writeTVar (roomClients room) $ insert name newClient roomclients
+          return (Just newClient)
+  else return (Nothing)
+-}
+{-
+removeClient :: ChatServer -> ClientName -> IO ()
+removeClient server@ChatServer{..} name = atomically $ do
+  modifyTVar' clients $ delete name
+  broadcast server $ (name ++ " has disconnected")
+-}
+
+{-
+broadcast :: ChatServer -> String -> STM ()
+broadcast ChatServer{..} msg = do
+  clientmap <- readTVar clients
+  mapM_ (\client -> sendMessage client msg) (elems clientmap)
+-}
