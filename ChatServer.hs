@@ -123,14 +123,12 @@ messageCommand handle server@ChatServer{..} command = do
     room <- atomically $ lookupChatroom server $ read chatroomRef
 
     case room of
-        Nothing -> hPutStrLn handle $ "The room you have messaged does not exist!"
+        Nothing -> hPutStrLn handle ("The room you have messaged does not exist!")
         Just room -> do
             clients <- atomically $ readTVar $ chatroomClients room
             let handleList = map snd $ M.toList clients
-            let message = "CHAT:" ++ chatroomRef ++ "\n" ++ "CLIENT_NAME:" ++ clientName ++ "\n" ++ "MESSAGE:" ++ show message ++ "\n\n"
-            return $ mapM_ hPutStrLn handleList message
-
-    hFlush handle
+            let msg = "CHAT:" ++ chatroomRef ++ "\n" ++ "CLIENT_NAME:" ++ clientName ++ "\n" ++ "MESSAGE:" ++ show message ++ "\n\n"
+            mapM_ (\h -> hPutStrLn h msg >> hFlush h) handleList
 
 leaveCommand :: undefined
 leaveCommand = undefined
