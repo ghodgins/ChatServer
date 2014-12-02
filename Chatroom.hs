@@ -24,3 +24,9 @@ newChatroom name ref = Chatroom name <$> return ref <*> newTVar M.empty
 
 chatroomAddClient :: Chatroom -> ClientJoinID -> Handle -> STM ()
 chatroomAddClient room joinID handle = modifyTVar (chatroomClients room) . M.insert joinID $ handle
+
+chatroomRemoveClient :: Chatroom -> ClientJoinID -> STM ()
+chatroomRemoveClient room joinID = modifyTVar (chatroomClients room) $ M.delete joinID
+
+chatroomGetRef :: Chatroom -> ChatroomRef
+chatroomGetRef Chatroom{..} = chatroomRef

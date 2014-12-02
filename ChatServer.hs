@@ -29,28 +29,39 @@ data ChatServer = ChatServer
     , port            :: String
     , clientJoinCount :: TVar ClientJoinID
     , roomRefCount    :: TVar ChatroomRef
+    , roomNameToRef   :: TVar (M.Map ChatroomName ChatroomRef)
     , serverChatrooms :: TVar (M.Map ChatroomRef Chatroom)
     , serverClients   :: TVar (M.Map ClientJoinID Client)
     }
 
 newChatServer :: String -> String -> IO ChatServer
 newChatServer address port = atomically $ do
-    server <- ChatServer <$> return address <*> return port <*> newTVar 0 <*> newTVar 0 <*> newTVar M.empty <*> newTVar M.empty
-    return server
-
+    ChatServer <$> return address <*> return port <*> newTVar 0 <*> newTVar 0 <*> newTVar M.empty <*> newTVar M.empty <*> newTVar M.empty
 
 addChatroom :: ChatServer -> ChatroomName -> ChatroomRef -> STM ()
-addChatroom ChatServer{..} name roomRef = newChatroom name roomRef >>= modifyTVar serverChatrooms . M.insert roomRef
+addChatroom ChatServer{..} name roomRef = do
+    room <- newChatroom name roomRef
+    modifyTVar serverChatrooms . M.insert roomRef $ room
+    modifyTVar roomNameToRef . M.insert name $ roomRef
 
-lookupChatroom :: ChatServer -> ChatroomRef -> STM (Maybe Chatroom)
-lookupChatroom ChatServer{..} roomRef = M.lookup roomRef <$> readTVar serverChatrooms
+lookupChatroomByName :: ChatServer -> ChatroomName -> STM (Maybe Chatroom)
+lookupChatroomByName ChatServer{..} name = do
+    roomRef <- M.lookup name <$> readTVar roomNameToRef
+    case roomRef of
+        Nothing  -> return Nothing
+        Just ref -> M.lookup ref <$> readTVar serverChatrooms
 
-lookupOrCreateChatroom :: ChatServer -> ChatroomName -> ChatroomRef -> STM Chatroom
-lookupOrCreateChatroom server@ChatServer{..} name roomRef = lookupChatroom server roomRef >>= \case
+lookupChatroomByRef :: ChatServer -> ChatroomRef -> STM (Maybe Chatroom)
+lookupChatroomByRef ChatServer{..} roomRef = M.lookup roomRef <$> readTVar serverChatrooms
+
+lookupOrCreateChatroom :: ChatServer -> ChatroomName -> STM Chatroom
+lookupOrCreateChatroom server@ChatServer{..} name = lookupChatroomByName server name >>= \case
     Nothing -> do
+        roomRef <- readTVar roomRefCount
         room <- newChatroom name roomRef
         modifyTVar serverChatrooms . M.insert roomRef $ room
-        --incrementRoomRefCount roomRefCount
+        modifyTVar roomNameToRef . M.insert name $ roomRef
+        incrementRoomRefCount roomRefCount
         return room
     Just room -> return room
 
@@ -83,21 +94,19 @@ joinCommand handle server@ChatServer{..} command = do
     putStrLn $ chatroomName ++ " " ++ clientName-}
 
     joinID <- atomically $ readTVar clientJoinCount
-    roomRef <- atomically $ readTVar roomRefCount 
 
     c <- atomically $ newClient joinID handle
     atomically $ addClientToServer server joinID c
     atomically $ incrementClientJoinCount clientJoinCount
 
-    --atomically $ addChatroom server chatroomName roomRef
-    room <- atomically $ lookupOrCreateChatroom server chatroomName roomRef
+    room <- atomically $ lookupOrCreateChatroom server chatroomName
     atomically $ chatroomAddClient room joinID handle
 
     hPutStrLn handle $ 
               "JOINED_CHATROOM:" ++ chatroomName ++ "\n" ++
               "SERVER_IP:" ++ address ++ "\n" ++
               "PORT:" ++ port ++ "\n" ++
-              "ROOM_REF:" ++ show roomRef ++ "\n" ++
+              "ROOM_REF:" ++ show (chatroomGetRef room) ++ "\n" ++
               "JOIN_ID:" ++ show joinID ++ "\n"
 
     hFlush handle
@@ -120,7 +129,7 @@ messageCommand handle server@ChatServer{..} command = do
     putStrLn $ show clientName
     putStrLn $ show message-}
 
-    room <- atomically $ lookupChatroom server $ read chatroomRef
+    room <- atomically $ lookupChatroomByRef server $ read chatroomRef
 
     case room of
         Nothing -> hPutStrLn handle ("The room you have messaged does not exist!")
@@ -130,7 +139,7 @@ messageCommand handle server@ChatServer{..} command = do
             let msg = "CHAT:" ++ chatroomRef ++ "\n" ++ "CLIENT_NAME:" ++ clientName ++ "\n" ++ "MESSAGE:" ++ show message ++ "\n\n"
             mapM_ (\h -> hPutStrLn h msg >> hFlush h) handleList
 
-leaveCommand :: undefined
+leaveCommand :: Handle -> ChatServer -> String -> IO ()
 leaveCommand = undefined
 {-
 Client Sends:
