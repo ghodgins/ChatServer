@@ -4,7 +4,8 @@ module Chatroom where
 
 import           Control.Applicative
 import           Control.Concurrent.STM
-import qualified Data.Set as S
+import qualified Data.Map as M
+import System.IO
 
 import Client
 import Types
@@ -15,20 +16,11 @@ import Types
 data Chatroom = Chatroom
     { chatroomName          :: ChatroomName
     , chatroomRef           :: ChatroomRef
-    , chatroomClients       :: TVar (S.Set ClientJoinID)
-    , chatroomBroadcastChan :: TChan String
+    , chatroomClients       :: TVar (M.Map ClientJoinID Handle)
     }
 
 newChatroom :: ChatroomName -> ChatroomRef -> STM Chatroom
-newChatroom name ref = Chatroom name <$> return ref <*> newTVar S.empty <*> newBroadcastTChan
+newChatroom name ref = Chatroom name <$> return ref <*> newTVar M.empty
 
-chatroomAddClient :: Chatroom -> ClientJoinID -> STM ()
-chatroomAddClient room joinID = modifyTVar (chatroomClients room) . S.insert $ joinID
-
--- Send a Message to the channel.
-chatroomMessage :: Chatroom -> String -> STM ()
-chatroomMessage = writeTChan . chatroomBroadcastChan
-
--- Send a Broadcast to the channel, from a client.
-chatroomBroadcast :: Chatroom -> ClientName -> String -> STM ()
-chatroomBroadcast room@Chatroom{..} clientName msg = chatroomMessage room msg
+chatroomAddClient :: Chatroom -> ClientJoinID -> Handle -> STM ()
+chatroomAddClient room joinID handle = modifyTVar (chatroomClients room) . M.insert joinID $ handle

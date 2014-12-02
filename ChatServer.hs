@@ -10,7 +10,7 @@ import System.Exit
 import Control.Concurrent {- hiding (forkFinally) instead using myFOrkFinally to avoid GHC version issues-}
 import Control.Concurrent.STM
 import Control.Exception
-import Control.Monad (forever, when, join)
+import Control.Monad (forever, when, join, mapM, mapM_, forM, forM_, sequence, sequence_)
 import Data.List.Split
 import qualified Data.Map as M hiding (split)
 import Control.Concurrent.Async
@@ -50,6 +50,7 @@ lookupOrCreateChatroom server@ChatServer{..} name roomRef = lookupChatroom serve
     Nothing -> do
         room <- newChatroom name roomRef
         modifyTVar serverChatrooms . M.insert roomRef $ room
+        --incrementRoomRefCount roomRefCount
         return room
     Just room -> return room
 
@@ -86,12 +87,11 @@ joinCommand handle server@ChatServer{..} command = do
 
     c <- atomically $ newClient joinID handle
     atomically $ addClientToServer server joinID c
+    atomically $ incrementClientJoinCount clientJoinCount
 
     --atomically $ addChatroom server chatroomName roomRef
-    atomically $ lookupOrCreateChatroom server chatroomName roomRef
-
-    atomically $ incrementClientJoinCount clientJoinCount
-    atomically $ incrementRoomRefCount roomRefCount
+    room <- atomically $ lookupOrCreateChatroom server chatroomName roomRef
+    atomically $ chatroomAddClient room joinID handle
 
     hPutStrLn handle $ 
               "JOINED_CHATROOM:" ++ chatroomName ++ "\n" ++
@@ -115,25 +115,22 @@ messageCommand handle server@ChatServer{..} command = do
         clientName = last $ splitOn ": " $ clines !! 2
         message = last $ splitOn ": " $ clines !! 3
 
-    putStrLn $ show chatroomRef
+    {-putStrLn $ show chatroomRef
     putStrLn $ show joinID
     putStrLn $ show clientName
-    putStrLn $ show message
+    putStrLn $ show message-}
 
+    room <- atomically $ lookupChatroom server $ read chatroomRef
 
+    case room of
+        Nothing -> hPutStrLn handle $ "The room you have messaged does not exist!"
+        Just room -> do
+            clients <- atomically $ readTVar $ chatroomClients room
+            let handleList = map snd $ M.toList clients
+            let message = "CHAT:" ++ chatroomRef ++ "\n" ++ "CLIENT_NAME:" ++ clientName ++ "\n" ++ "MESSAGE:" ++ show message ++ "\n\n"
+            return $ mapM_ hPutStrLn handleList message
 
-{-
-Client Sends:
-CHAT: [ROOM_REF]
-JOIN_ID: [integer identifying client to server]
-CLIENT_NAME: [string identifying client user]
-MESSAGE: [string terminated with '\n\n']
-
-Server Responds to all clients:
-CHAT: [ROOM_REF]
-CLIENT_NAME: [string identifying client user]
-MESSAGE: [string terminated with '\n\n']
--}
+    hFlush handle
 
 leaveCommand :: undefined
 leaveCommand = undefined
