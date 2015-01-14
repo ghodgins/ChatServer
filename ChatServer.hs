@@ -13,7 +13,6 @@ import Control.Exception
 import Control.Monad (forever, when, join, mapM, mapM_, forM, forM_, sequence, sequence_)
 import Data.List.Split
 import qualified Data.Map as M hiding (split)
-import Control.Concurrent.Async
 import Prelude hiding (null, lookup)
 import Control.Applicative ((<$>), (<*>))
 
