@@ -10,7 +10,6 @@ import Control.Exception
 import Control.Monad (forever, when, join)
 import Data.List.Split
 import qualified Data.Map as M hiding (split)
-import Control.Concurrent.Async
 import Prelude hiding (null, lookup)
 import Text.Printf (printf)
 
