@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, RecordWildCards, TupleSections #-} 
+{-# LANGUAGE RecordWildCards, TupleSections #-} 
 
 module Client where
 
