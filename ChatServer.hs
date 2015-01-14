@@ -1,4 +1,4 @@
-{-#LANGUAGE LambdaCase, RecordWildCards #-}
+{-#LANGUAGE RecordWildCards #-}
 
 module ChatServer where
 
@@ -55,15 +55,16 @@ lookupChatroomByRef :: ChatServer -> ChatroomRef -> STM (Maybe Chatroom)
 lookupChatroomByRef ChatServer{..} roomRef = M.lookup roomRef <$> readTVar serverChatrooms
 
 lookupOrCreateChatroom :: ChatServer -> ChatroomName -> STM Chatroom
-lookupOrCreateChatroom server@ChatServer{..} name = lookupChatroomByName server name >>= \case
-    Nothing -> do
+lookupOrCreateChatroom server@ChatServer{..} name = lookupChatroomByName server name >>= \x ->
+    case x of
+      Nothing -> do
         roomRef <- readTVar roomRefCount
         room <- newChatroom name roomRef
         modifyTVar serverChatrooms . M.insert roomRef $ room
         modifyTVar roomNameToRef . M.insert name $ roomRef
         incrementRoomRefCount roomRefCount
         return room
-    Just room -> return room
+      Just room -> return room
 
 addClientToServer :: ChatServer -> ClientJoinID -> Client -> STM ()
 addClientToServer server@ChatServer{..} joinID client@Client{..} =
