@@ -4,3 +4,7 @@ JOIN_CHATROOM: Distro\nCLIENT_IP: 0\nPORT: 0\nCLIENT_NAME: Dave
 
 CHAT: 0\nJOIN_ID: 0\nCLIENT_NAME: Conor\nMESSAGE: Hello my name is Conor blah blah blah\n\n
 CHAT: 1\nJOIN_ID: 1\nCLIENT_NAME: James\nMESSAGE: Hello my name is James blah blah blah\n\n
+
+LEAVE_CHATROOM: 0\nJOIN_ID: 0\nCLIENT_NAME: Conor
+LEAVE_CHATROOM: 0\nJOIN_ID: 1\nCLIENT_NAME: James
+LEAVE_CHATROOM: 0\nJOIN_ID: 2\nCLIENT_NAME: Dave

@@ -30,12 +30,14 @@ data ChatServer = ChatServer
     , roomRefCount    :: TVar ChatroomRef
     , roomNameToRef   :: TVar (M.Map ChatroomName ChatroomRef)
     , serverChatrooms :: TVar (M.Map ChatroomRef Chatroom)
+    , nameToJoinId    :: TVar (M.Map ClientName ClientJoinID)
     , serverClients   :: TVar (M.Map ClientJoinID Client)
     }
 
 newChatServer :: String -> String -> IO ChatServer
 newChatServer address port = atomically $ do
-    ChatServer <$> return address <*> return port <*> newTVar 0 <*> newTVar 0 <*> newTVar M.empty <*> newTVar M.empty <*> newTVar M.empty
+    ChatServer <$> return address <*> return port <*> newTVar 0 <*> newTVar 0 <*> newTVar M.empty
+               <*> newTVar M.empty <*> newTVar M.empty <*> newTVar M.empty
 
 addChatroom :: ChatServer -> ChatroomName -> ChatroomRef -> STM ()
 addChatroom ChatServer{..} name roomRef = do
@@ -68,6 +70,10 @@ lookupOrCreateChatroom server@ChatServer{..} name = lookupChatroomByName server 
 addClientToServer :: ChatServer -> ClientJoinID -> Client -> STM ()
 addClientToServer server@ChatServer{..} joinID client@Client{..} =
     modifyTVar serverClients $ M.insert joinID client
+
+removeClientFromServer :: ChatServer -> ClientJoinID -> STM ()
+removeClientFromServer server@ChatServer{..} joinID =
+    modifyTVar serverClients $ M.delete joinID
 
 clientHandler :: Handle -> ChatServer -> IO ()
 clientHandler handle server@ChatServer{..} =
@@ -140,7 +146,26 @@ messageCommand handle server@ChatServer{..} command = do
             mapM_ (\h -> hPutStrLn h msg >> hFlush h) handleList
 
 leaveCommand :: Handle -> ChatServer -> String -> IO ()
-leaveCommand = undefined
+leaveCommand handle server@ChatServer{..} command = do
+    let clines = splitOn "\\n" command
+        chatroomRef = last $ splitOn ": " $ clines !! 0
+        joinID = last $ splitOn ": " $ clines !! 1
+        clientName = last $ splitOn ": " $ clines !! 2
+    
+    room <- atomically $ lookupChatroomByRef server $ read chatroomRef
+
+    case room of
+        (Just r) -> do
+            atomically $ chatroomRemoveClient r (read joinID)
+                    
+            hPutStrLn handle $ 
+                "LEFT_CHATROOM:" ++ chatroomRef ++ "\n" ++
+                "JOIN_ID:" ++ show joinID ++ "\n"
+                    
+            hFlush handle
+        Nothing  -> do
+            hPutStrLn handle ("Chatroom you have tried to leave does not exist.")
+            hFlush handle
 {-
 Client Sends:
 LEAVE_CHATROOM: [ROOM_REF]
@@ -152,8 +177,16 @@ LEFT_CHATROOM: [ROOM_REF]
 JOIN_ID: [integer previously provided by server on join]
 -}
 
-terminateCommand :: undefined
-terminateCommand = undefined
+terminateCommand :: Handle -> ChatServer -> String -> IO ()
+terminateCommand handle server@ChatServer{..} command = do
+    let clines = splitOn "\\n" command
+        address = last $ splitOn ": " $ clines !! 0
+        port = last $ splitOn ": " $ clines !! 1
+        clientName = last $ splitOn ": " $ clines !! 2
+
+    --atomically $ removeClientFromServer (read joinID)
+    print $ "Client " ++ clientName ++ " removed!"
+    hClose handle
 {-
 Client Sends:
 DISCONNECT: [IP address of client if UDP | 0 if TCP]
