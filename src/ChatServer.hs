@@ -79,7 +79,7 @@ clientHandler :: Handle -> ChatServer -> IO ()
 clientHandler handle server@ChatServer{..} =
     forever $ do
         msg <- hGetLine handle
-        print msg
+        print $ msg ++ "!ENDLINE!"
         let cmd = words msg
 
         case (head cmd) of
@@ -95,12 +95,18 @@ joinCommand :: Handle -> ChatServer -> String -> IO ()
 joinCommand handle server@ChatServer{..} command = do
     --putStrLn $ "Joincommand - " ++ command
 
-    let clines = splitOn "\\n" command
-        chatroomName = last $ splitOn ": " $ clines !! 0
-        clientName = last $ splitOn ": " $ clines !! 3
+    --let clines = splitOn "\\n" command
+    --    chatroomName = last $ splitOn ":" $ clines !! 0
+    --    clientName = last $ splitOn ":" $ clines !! 3
     {-putStrLn $ show chatroomName
     putStrLn $ show clientName
     putStrLn $ chatroomName ++ " " ++ clientName-}
+    let chatroomName = last $ splitOn ":" $ command
+    msg <- hGetLine handle --
+    msg <- hGetLine handle -- 
+    msg <- hGetLine handle
+
+    let clientName = last $ splitOn ":" $ msg
 
     joinID <- atomically $ readTVar clientJoinCount
 
