@@ -84,6 +84,8 @@ clientHandler handle server@ChatServer{..} =
         case (head cmd) of
             ("JOIN_CHATROOM:") -> joinCommand handle server msg
             ("CHAT:") -> messageCommand handle server msg
+            ("LEAVE_CHATROOM:") -> leaveCommand handle server msg
+            ("DISCONNECT:") -> terminateCommand handle server msg
             ("HELO") -> heloCommand handle server $ unwords $ tail cmd
             ("KILL_SERVICE") -> killCommand handle
             _ -> do hPutStrLn handle ("Unknown Command - " ++ msg)
@@ -113,7 +115,7 @@ joinCommand handle server@ChatServer{..} command = do
               "SERVER_IP:" ++ address ++ "\n" ++
               "PORT:" ++ port ++ "\n" ++
               "ROOM_REF:" ++ show (chatroomGetRef room) ++ "\n" ++
-              "JOIN_ID:" ++ show joinID ++ "\n"
+              "JOIN_ID:" ++ show joinID ++ "\n\n"
 
     hFlush handle
 {-
@@ -160,7 +162,7 @@ leaveCommand handle server@ChatServer{..} command = do
                     
             hPutStrLn handle $ 
                 "LEFT_CHATROOM:" ++ chatroomRef ++ "\n" ++
-                "JOIN_ID:" ++ show joinID ++ "\n"
+                "JOIN_ID:" ++ show joinID ++ "\n\n"
                     
             hFlush handle
         Nothing  -> do
@@ -201,7 +203,7 @@ heloCommand handle ChatServer{..} msg = do
   hPutStrLn handle $ "HELO " ++ msg ++ "\n" ++
                      "IP:" ++ address ++ "\n" ++
                      "Port:" ++ port ++ "\n" ++
-                     "StudentID:11396966\n"
+                     "StudentID:11396966\n\n"
 
   hFlush handle
 

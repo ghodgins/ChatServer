@@ -25,8 +25,18 @@ maxThreadCount = 16
 main :: IO ()
 main = withSocketsDo $ do
     server <- newChatServer "localhost" "44444"
-    sock <- listenOn (PortNumber (fromIntegral serverport))
-    _ <- printf "Listening on port %d\n" serverport
+    --sock <- listenOn (PortNumber (fromIntegral serverport))
+
+    addrinfos <- getAddrInfo
+                 (Just (defaultHints {addrFlags = [AI_PASSIVE]}))
+                 Nothing (Just serverport)
+
+    let serveraddr = head addrinfos
+    sock <- socket (addrFamily serveraddr) Stream defaultProtocol
+    bindSocket sock (addrAddress serveraddr)
+    listen sock 5
+
+    _ <- printf "Listening on port %s\n" serverport
 
     threadCount <- atomically $ newTVar 0
 
@@ -44,8 +54,8 @@ main = withSocketsDo $ do
                 hPutStrLn handle "Service reached maximum capacity, please try again later!"
                 hClose handle
 
-serverport :: Int
-serverport = 44444
+serverport :: String
+serverport = "44444"
 
 incrementTVar :: TVar Int -> STM ()
 incrementTVar tv = modifyTVar tv ((+) 1)
