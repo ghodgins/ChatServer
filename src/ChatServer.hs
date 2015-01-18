@@ -75,24 +75,25 @@ removeClientFromServer :: ChatServer -> ClientJoinID -> STM ()
 removeClientFromServer server@ChatServer{..} joinID =
     modifyTVar serverClients $ M.delete joinID
 
-clientHandler :: Handle -> ChatServer -> IO ()
-clientHandler handle server@ChatServer{..} =
+clientHandler :: Socket -> ChatServer -> IO ()
+clientHandler sock server@ChatServer{..} =
     forever $ do
-        msg <- hGetContents handle
+        msg <- recv sock 1024
         print $ msg ++ "!ENDLINE!"
-        let cmd = words msg
+        let cmd = head $ splitOn ":" msg
+        print cmd
 
-        case (head cmd) of
-            ("JOIN_CHATROOM:") -> joinCommand handle server msg
-            ("CHAT:") -> messageCommand handle server msg
-            ("LEAVE_CHATROOM:") -> leaveCommand handle server msg
-            ("DISCONNECT:") -> terminateCommand handle server msg
-            ("HELO") -> heloCommand handle server $ unwords $ tail cmd
-            ("KILL_SERVICE") -> killCommand handle
-            _ -> do hPutStrLn handle ("Unknown Command - " ++ msg ++ "\n\n")
+        case cmd of
+            ("JOIN_CHATROOM") -> joinCommand sock server msg
+            ("CHAT") -> messageCommand sock server msg
+            ("LEAVE_CHATROOM") -> leaveCommand sock server msg
+            ("DISCONNECT") -> terminateCommand sock server msg
+            ("HELO") -> heloCommand sock server msg
+            ("KILL_SERVICE") -> killCommand sock
+            _ -> do send sock ("Unknown Command - " ++ msg ++ "\n\n") ; return ()
 
-joinCommand :: Handle -> ChatServer -> String -> IO ()
-joinCommand handle server@ChatServer{..} command = do
+joinCommand :: Socket -> ChatServer -> String -> IO ()
+joinCommand sock server@ChatServer{..} command = do
     --putStrLn $ "Joincommand - " ++ command
 
     let clines = splitOn "\\n" command
@@ -104,29 +105,30 @@ joinCommand handle server@ChatServer{..} command = do
 
     joinID <- atomically $ readTVar clientJoinCount
 
-    c <- atomically $ newClient joinID handle
+    c <- atomically $ newClient joinID sock
     atomically $ addClientToServer server joinID c
     atomically $ incrementClientJoinCount clientJoinCount
 
     room <- atomically $ lookupOrCreateChatroom server chatroomName
-    atomically $ chatroomAddClient room joinID handle
+    atomically $ chatroomAddClient room joinID sock
 
-    hPutStrLn handle $ 
+    send sock $ 
               "JOINED_CHATROOM:" ++ chatroomName ++ "\n" ++
               "SERVER_IP:" ++ address ++ "\n" ++
               "PORT:" ++ port ++ "\n" ++
               "ROOM_REF:" ++ show (chatroomGetRef room) ++ "\n" ++
               "JOIN_ID:" ++ show joinID ++ "\n\n"
 
-    hFlush handle
+    return ()
+    --hFlush sock
 {-
 Error Response:
 ERROR_CODE: [integer]
 ERROR_DESCRIPTION: [string describing error]
 -}
 
-messageCommand :: Handle -> ChatServer -> String -> IO ()
-messageCommand handle server@ChatServer{..} command = do
+messageCommand :: Socket -> ChatServer -> String -> IO ()
+messageCommand sock server@ChatServer{..} command = do
     let clines = splitOn "\\n" command
         chatroomRef = last $ splitOn ": " $ clines !! 0
         joinID = last $ splitOn ": " $ clines !! 1
@@ -141,15 +143,17 @@ messageCommand handle server@ChatServer{..} command = do
     room <- atomically $ lookupChatroomByRef server $ read chatroomRef
 
     case room of
-        Nothing -> hPutStrLn handle ("The room you have messaged does not exist!")
+        Nothing -> send sock ("The room you have messaged does not exist!") >> return ()
         Just room -> do
             clients <- atomically $ readTVar $ chatroomClients room
-            let handleList = map snd $ M.toList clients
+            let sockList = map snd $ M.toList clients
             let msg = "CHAT:" ++ chatroomRef ++ "\n" ++ "CLIENT_NAME:" ++ clientName ++ "\n" ++ "MESSAGE:" ++ show message ++ "\n\n"
-            mapM_ (\h -> hPutStrLn h msg >> hFlush h) handleList
+            --mapM_ (\h -> hPutStrLn h msg >> hFlush h) handleList
+            mapM_ (\h -> send sock msg) sockList
+            return ()
 
-leaveCommand :: Handle -> ChatServer -> String -> IO ()
-leaveCommand handle server@ChatServer{..} command = do
+leaveCommand :: Socket -> ChatServer -> String -> IO ()
+leaveCommand sock server@ChatServer{..} command = do
     let clines = splitOn "\\n" command
         chatroomRef = last $ splitOn ": " $ clines !! 0
         joinID = last $ splitOn ": " $ clines !! 1
@@ -161,27 +165,30 @@ leaveCommand handle server@ChatServer{..} command = do
         (Just r) -> do
             atomically $ chatroomRemoveClient r (read joinID)
                     
-            hPutStrLn handle $ 
+            send sock $ 
                 "LEFT_CHATROOM:" ++ chatroomRef ++ "\n" ++
                 "JOIN_ID:" ++ show joinID ++ "\n\n"
+
+            return ()
                     
-            hFlush handle
+            --hFlush sock
         Nothing  -> do
-            hPutStrLn handle ("Chatroom you have tried to leave does not exist.")
-            hFlush handle
+            send sock ("Chatroom you have tried to leave does not exist.")
+            return ()
+            --hFlush sock
 {-
 Client Sends:
 LEAVE_CHATROOM: [ROOM_REF]
 JOIN_ID: [integer previously provided by server on join]
-CLIENT_NAME: [string Handle to identifier client user]
+CLIENT_NAME: [string sock to identifier client user]
 
 Server Response:
 LEFT_CHATROOM: [ROOM_REF]
 JOIN_ID: [integer previously provided by server on join]
 -}
 
-terminateCommand :: Handle -> ChatServer -> String -> IO ()
-terminateCommand handle server@ChatServer{..} command = do
+terminateCommand :: Socket -> ChatServer -> String -> IO ()
+terminateCommand sock server@ChatServer{..} command = do
     let clines = splitOn "\\n" command
         address = last $ splitOn ": " $ clines !! 0
         port = last $ splitOn ": " $ clines !! 1
@@ -189,28 +196,29 @@ terminateCommand handle server@ChatServer{..} command = do
 
     --atomically $ removeClientFromServer (read joinID)
     print $ "Client " ++ clientName ++ " removed!"
-    hClose handle
+    close sock
 {-
 Client Sends:
 DISCONNECT: [IP address of client if UDP | 0 if TCP]
 PORT: [port number of client it UDP | 0 id TCP]
-CLIENT_NAME: [string handle to identify client user]
+CLIENT_NAME: [string sock to identify client user]
 
 Server closes connection
 -}
 
-heloCommand :: Handle -> ChatServer -> String -> IO ()
-heloCommand handle ChatServer{..} msg = do
-  hPutStrLn handle $ "HELO " ++ msg ++ "\n" ++
+heloCommand :: Socket -> ChatServer -> String -> IO ()
+heloCommand sock ChatServer{..} msg = do
+  send sock $ "HELO " ++ msg ++ "\n" ++
                      "IP:" ++ "134.226.32.10" ++ "\n" ++
                      "Port:" ++ port ++ "\n" ++
                      "StudentID:11396966\n\n"
 
-  hFlush handle
+  return ()
+  --hFlush sock
 
-killCommand :: Handle -> IO ()
-killCommand handle = do
-    hPutStrLn handle "Service is now terminating!"
+killCommand :: Socket -> IO ()
+killCommand sock = do
+    send sock "Service is now terminating!"
     exitSuccess
 
 incrementClientJoinCount :: TVar ClientJoinID -> STM ()

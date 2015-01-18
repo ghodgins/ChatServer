@@ -1,7 +1,7 @@
 module Main where
 
-import Network
-import Network.Socket hiding (accept)
+import Network hiding (accept)
+import Network.Socket
 import System.Environment
 import System.IO
 import Control.Concurrent {- hiding (forkFinally) instead using myFOrkFinally to avoid GHC version issues-}
@@ -44,15 +44,15 @@ main = withSocketsDo $ do
         count <- atomically $ readTVar threadCount
         putStrLn $ "threadCount = " ++ show count
 
-        (handle, host, port') <- accept sock
-        _ <- printf "Accepted connection from %s: %s\n" host (show port')
+        (clientSock, connAddr) <- accept sock
+        _ <- printf "Accepted connection from %s\n" (show connAddr)
 
         if (count < maxThreadCount) then do
-            myForkFinally (clientHandler handle server) (\_ -> atomically $ decrementTVar threadCount)
+            myForkFinally (clientHandler clientSock server) (\_ -> atomically $ decrementTVar threadCount)
             atomically $ incrementTVar threadCount
             else do
-                hPutStrLn handle "Service reached maximum capacity, please try again later!"
-                hClose handle
+                send clientSock "Service reached maximum capacity, please try again later!"
+                close clientSock
 
 serverport :: String
 serverport = "44444"

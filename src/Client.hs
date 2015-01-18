@@ -4,6 +4,7 @@ module Client where
 
 import Control.Concurrent.STM
 import System.IO (Handle, hPutStrLn)
+import Network.Socket
 import qualified Data.Set as S
 
 import Types
@@ -11,18 +12,18 @@ import Types
 data Client = Client
     { clientName          :: TVar ClientName
     , clientJoinID        :: ClientJoinID
-    , clientHandle        :: Handle
+    , clientSocket        :: Socket
     , clientRoomRefs      :: TVar (S.Set ChatroomRef)
     }
 
-newClient :: ClientJoinID -> Handle -> STM Client
-newClient joinID handle = do
+newClient :: ClientJoinID -> Socket -> STM Client
+newClient joinID socket = do
     clientName <- newTVar "default"
     roomRefs <- newTVar S.empty
     return Client
         { clientName          = clientName
         , clientJoinID        = joinID
-        , clientHandle        = handle
+        , clientSocket        = socket
         , clientRoomRefs      = roomRefs
         }
 
