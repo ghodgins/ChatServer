@@ -79,6 +79,7 @@ clientHandler :: Handle -> ChatServer -> IO ()
 clientHandler handle server@ChatServer{..} =
     forever $ do
         msg <- hGetLine handle
+        print msg
         let cmd = words msg
 
         case (head cmd) of
@@ -88,7 +89,7 @@ clientHandler handle server@ChatServer{..} =
             ("DISCONNECT:") -> terminateCommand handle server msg
             ("HELO") -> heloCommand handle server $ unwords $ tail cmd
             ("KILL_SERVICE") -> killCommand handle
-            _ -> do hPutStrLn handle ("Unknown Command - " ++ msg)
+            _ -> do hPutStrLn handle ("Unknown Command - " ++ msg ++ "\n\n")
 
 joinCommand :: Handle -> ChatServer -> String -> IO ()
 joinCommand handle server@ChatServer{..} command = do
@@ -201,7 +202,7 @@ Server closes connection
 heloCommand :: Handle -> ChatServer -> String -> IO ()
 heloCommand handle ChatServer{..} msg = do
   hPutStrLn handle $ "HELO " ++ msg ++ "\n" ++
-                     "IP:" ++ address ++ "\n" ++
+                     "IP:" ++ "134.226.32.10" ++ "\n" ++
                      "Port:" ++ port ++ "\n" ++
                      "StudentID:11396966\n\n"
 

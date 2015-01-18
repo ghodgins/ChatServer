@@ -24,7 +24,7 @@ maxThreadCount = 16
 
 main :: IO ()
 main = withSocketsDo $ do
-    server <- newChatServer "localhost" "44444"
+    server <- newChatServer "localhost" serverport
     --sock <- listenOn (PortNumber (fromIntegral serverport))
 
     addrinfos <- getAddrInfo
