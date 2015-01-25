@@ -133,10 +133,10 @@ ERROR_DESCRIPTION: [string describing error]
 messageCommand :: Socket -> ChatServer -> String -> IO ()
 messageCommand sock server@ChatServer{..} command = do
     let clines = splitOn "\\n" command
-        chatroomRef = last $ splitOn ": " $ clines !! 0
-        joinID = last $ splitOn ": " $ clines !! 1
-        clientName = last $ splitOn ": " $ clines !! 2
-        message = last $ splitOn ": " $ clines !! 3
+        chatroomRef = (splitOn ":" $ clines !! 0) !! 1
+        joinID = (splitOn ":" $ clines !! 1) !! 1
+        clientName = (splitOn ":" $ clines !! 2) !! 1
+        message = (splitOn ":" $ clines !! 3) !! 1
 
     {-putStrLn $ show chatroomRef
     putStrLn $ show joinID
@@ -152,15 +152,15 @@ messageCommand sock server@ChatServer{..} command = do
             let sockList = map snd $ M.toList clients
             let msg = "CHAT:" ++ chatroomRef ++ "\n" ++ "CLIENT_NAME:" ++ clientName ++ "\n" ++ "MESSAGE:" ++ show message ++ "\n\n"
             --mapM_ (\h -> hPutStrLn h msg >> hFlush h) handleList
-            mapM_ (\h -> send sock (pack msg)) sockList
+            mapM_ (\s -> sendAll s (pack msg)) sockList
             return ()
 
 leaveCommand :: Socket -> ChatServer -> String -> IO ()
 leaveCommand sock server@ChatServer{..} command = do
     let clines = splitOn "\\n" command
-        chatroomRef = last $ splitOn ": " $ clines !! 0
-        joinID = last $ splitOn ": " $ clines !! 1
-        clientName = last $ splitOn ": " $ clines !! 2
+        chatroomRef = (splitOn ":" $ clines !! 0) !! 1
+        joinID = (splitOn ":" $ clines !! 1) !! 1
+        clientName = (splitOn ":" $ clines !! 2) !! 1
     
     room <- atomically $ lookupChatroomByRef server $ read chatroomRef
 
@@ -193,9 +193,9 @@ JOIN_ID: [integer previously provided by server on join]
 terminateCommand :: Socket -> ChatServer -> String -> IO ()
 terminateCommand sock server@ChatServer{..} command = do
     let clines = splitOn "\\n" command
-        address = last $ splitOn ": " $ clines !! 0
-        port = last $ splitOn ": " $ clines !! 1
-        clientName = last $ splitOn ": " $ clines !! 2
+        address = (splitOn ":" $ clines !! 0) !! 1
+        port = (splitOn ":" $ clines !! 1) !! 1
+        clientName = (splitOn ":" $ clines !! 2) !! 1
 
     --atomically $ removeClientFromServer (read joinID)
     print $ "Client " ++ clientName ++ " removed!"
