@@ -1,6 +1,6 @@
 module Main where
 
-import Network hiding (accept)
+import Network hiding (accept, sClose)
 import Network.Socket
 import System.Environment
 import System.IO
@@ -24,7 +24,7 @@ maxThreadCount = 16
 
 main :: IO ()
 main = withSocketsDo $ do
-    server <- newChatServer "localhost" serverport
+    server <- newChatServer serverhost serverport
     --sock <- listenOn (PortNumber (fromIntegral serverport))
 
     addrinfos <- getAddrInfo
@@ -52,10 +52,13 @@ main = withSocketsDo $ do
             atomically $ incrementTVar threadCount
             else do
                 send clientSock "Service reached maximum capacity, please try again later!"
-                close clientSock
+                sClose clientSock
 
 serverport :: String
 serverport = "44444"
+
+serverhost :: String
+serverhost = "134.226.32.10"
 
 incrementTVar :: TVar Int -> STM ()
 incrementTVar tv = modifyTVar tv ((+) 1)
