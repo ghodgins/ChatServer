@@ -2,6 +2,12 @@ ChatServer
 ==========
 This is a server that implements the backend for a chat server. Clients can connect and join/leave multiple chatrooms, sending messages to all clients subscribed to that chatroom.
 
+##Compile and Run:
+1. git clone https://github.com/ghodgins/ChatServer.git
+2. cd src/
+3. ghc Main.hs
+4. ./Main
+
 ##Telnet clients to test:
 As standard the program runs on port 44444 so the following command can be used:
 - ```telnet localhost 44444```
